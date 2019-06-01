@@ -1,73 +1,63 @@
-import utils
 import preprocess as pre
 import feature_extraction as fe
-import XGBoost as xgb
-from sklearn.model_selection import train_test_split
 import performances as per
-import visualization as vis
+import utils
+import explanation as exp
+import XGBoost as xgb
 import numpy as np
-import Baseline as bl
-from explanation import explain_model
+import pandas as pd
+import shutil
 import os
 import pathlib
 
-path_object = pathlib.Path('outputs')
-if not path_object.exists():
-    os.makedirs('outputs')
-# get tagged df
-tagged_df = utils.read_to_df()  # Vigo data
+HERE = pathlib.Path(__file__).parent
+FEATURE_LIST = ['post_length', 'tfidf', 'topics', 'screamer', 'words', 'off_dis', 'not_off_dis']
 
-# pre process
-tagged_df = pre.preprocess(tagged_df)
 
-# extract features
-feature_list = ['post_length', 'tfidf', 'topics', 'screamer', 'words', 'off_dis', 'not_off_dis']
-X = fe.extract_features(tagged_df, feature_list)
-y = (tagged_df['cb_level'] == 3).astype(int)
-X = X.drop(columns=['id'])
+def train_file(file_path):
+    path_object = pathlib.Path(HERE / 'outputs')
+    if path_object.exists():
+        shutil.rmtree(HERE / 'outputs')
+        os.makedirs(HERE / 'outputs')
+    tagged_df = utils.read_to_df(file_path)
+    tagged_df = pre.preprocess(tagged_df)
+    X = fe.extract_features(tagged_df, FEATURE_LIST)
+    y = (tagged_df['cb_level'] == 3).astype(int)
+    X = X.drop(columns=['id'])
+    xgb_obj = xgb.XGBoost()
+    xgb_obj.train(X, y)
+    exp.explain_model(xgb_obj.model, X)
+    utils.save_model(xgb_obj.model, os.path.join(HERE / 'outputs', 'XGBoost.pkl'))
 
-# index_not_offensive = 389 todo!!!
-# index_offensive = 1546
-# X_shap = X.iloc[index_not_offensive: index_offensive + 1]
 
-# split data to train and test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+def predict(post, explainability=True):
+    if len(os.listdir(HERE / 'outputs')) == 0:
+        return {'error': "Please train the model with train data set first.."}
 
-performances_list = {}
-auc_list = {}
+    model = utils.get_model(os.path.join(HERE / 'outputs', 'XGBoost.pkl'))
+    xgb_obj = xgb.XGBoost()
+    xgb_obj.model = model
+    post_dataframe = pd.DataFrame({'id': [1], 'text': [post]})
+    post_dataframe = pre.preprocess(post_dataframe)
+    X = fe.extract_features(post_dataframe, FEATURE_LIST)
+    X = X.drop(columns=['id'])
+    y_prob = xgb_obj.predict(X)
+    pred = np.where(y_prob > 0.5, 1, 0)
+    result = {'class': int(pred[0])}
+    if explainability:
+        result['explain'] = exp.explain_class(model, X)
+    return result
 
-# 1.baseline
-y_pred_bl = bl.run_baseline(tagged_df)
-performances_bl = per.get_performances(y, y_pred_bl)
-performances_list['baseline'] = performances_bl
 
-# 2.XGBoost
-xgb_obj = xgb.XGBoost()
-xgb_classifier = xgb_obj.train(X_train, y_train)
-y_prob_xgb = xgb_obj.predict(X_test)
-y_pred_xgb = np.where(y_prob_xgb > 0.5, 1, 0)
-performances_xgb = per.get_performances(y_test, y_pred_xgb)
-performances_list['XGBoost'] = performances_xgb
-
-# visualization
-roc_auc_bl, fpr_bl, tpr_bl = per.get_roc_auc(y, y_pred_bl)
-auc_list['baseline'] = roc_auc_bl
-roc_auc_xgb, fpr_xgb, tpr_xgb = per.get_roc_auc(y_test, y_prob_xgb)
-auc_list['XGBoost'] = roc_auc_xgb
-
-vis.plot_roc_curve(roc_auc_bl, fpr_bl, tpr_bl,'baseline')
-vis.plot_roc_curve(roc_auc_xgb, fpr_xgb, tpr_xgb, 'xgboost')
-vis.plot_models_compare(performances_bl, performances_xgb)
-
-# SHAP for XGBoost:
-#explain_model(xgb_obj.get_booster(), X_shap, folder_name)
-path_object = pathlib.Path('pictures')
-if not path_object.exists():
-    os.makedirs('pictures')
-explain_model(xgb_obj.get_booster(), X_test, 'pictures')
-
-acc_bl = per.get_accuracy(y, y_pred_bl)
-acc_xgb = per.get_accuracy(y_test, y_pred_xgb)
-
-print('accuracy for baseline: ', acc_bl)
-print('accuracy for xgboost: ', acc_xgb)
+def get_performances(file_path):
+    model = utils.get_model(HERE / 'outputs/XGBoost.pkl')
+    xgb_obj = xgb.XGBoost()
+    xgb_obj.model = model
+    df = utils.read_to_df(file_path)
+    df = pre.preprocess(df)
+    X = fe.extract_features(df, FEATURE_LIST)
+    X = X.drop(columns=['id'])
+    y = (df['cb_level'] == 3).astype(int)
+    y_prob_rf = xgb_obj.predict(X)
+    pred = np.where(y_prob_rf > 0.5, 1, 0)
+    return per.get_performances(y, pred)

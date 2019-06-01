@@ -7,6 +7,8 @@ import utils
 import word2vec as w2v
 import os.path
 import helpers
+import pathlib
+ROOT = pathlib.Path(__file__).parent
 
 
 def get_functions_dictionary():
@@ -18,50 +20,18 @@ def get_functions_dictionary():
         'words': extract_meaningful_words_existence,
         'off_dis': extract_distance_from_offensive,
         'not_off_dis': extract_distance_from_not_offensive,
-        'wmd_off': extract_wmd_offensive,
-        'wmd_not_off': extract_wmd_not_offensive,
         'dis_avg_vec': extract_distance_from_avg_vector
     }
-
-
-def extract_wmd_offensive(df):
-    df_wmd_offensive = pd.DataFrame(columns=['id', 'wmd_off_tfidf'])
-    df_wmd_offensive['id'] = df['id'].tolist()
-    tf_idf_difference = helpers.get_meaningful_words_tf_idf_difference(df)
-    offensive_words_tf_idf = tf_idf_difference.iloc[:, 0:20]
-    offensive_words_tf_idf = list(offensive_words_tf_idf.columns.values)
-    m_our = w2v.get_model(r'our.corpus.word2vec.model')  # TODO: fix path
-    m_our.init_sims(replace=True)  # Normalizes the vectors in the word2vec class.
-    df_wmd_offensive['wmd_off_tfidf'] = df['text'].apply(
-        lambda x:
-        float("{0:.4f}".format(m_our.wmdistance(offensive_words_tf_idf, word_tokenize(x))))
-    )
-    return df_wmd_offensive
-
-
-def extract_wmd_not_offensive(df):
-    df_wmd_not_offensive = pd.DataFrame(columns=['id', 'wmd_not_off_tfidf'])
-    df_wmd_not_offensive['id'] = df['id'].tolist()
-    tf_idf_difference = helpers.get_meaningful_words_tf_idf_difference(df)
-    not_offensive = tf_idf_difference.iloc[:, -20:-1]
-    not_offensive_words_tf_idf = list(not_offensive.columns.values)
-    m_our = w2v.get_model(r'our.corpus.word2vec.model')  # TODO: fix path
-    m_our.init_sims(replace=True)  # Normalizes the vectors in the word2vec class.
-    df_wmd_not_offensive['wmd_not_off_tfidf'] = df['text'].apply(
-        lambda x:
-        float("{0:.4f}".format(m_our.wmdistance(not_offensive_words_tf_idf, word_tokenize(x))))
-    )
-    return df_wmd_not_offensive
 
 
 def extract_tf_idf(df):
     posts = df['text'].tolist()
 
-    tf_idf_model = utils.get_model(os.path.join('outputs', 'tfidf.pkl'))
+    tf_idf_model = utils.get_model(os.path.join(ROOT / "outputs", "tfidf.pkl"))
     if tf_idf_model is None:
         tf_idf_model = TfidfVectorizer(stop_words=utils.get_stop_words(), ngram_range=(1, 2))
         tf_idf_model.fit(posts)
-        utils.save_model(tf_idf_model, os.path.join('outputs', 'tfidf.pkl'))
+        utils.save_model(tf_idf_model, os.path.join(ROOT / 'outputs', 'tfidf.pkl'))
 
     tf_idf_matrix = tf_idf_model.transform(posts)
 
@@ -81,15 +51,15 @@ def extract_post_length(df):
 def extract_topics(df):
     posts = df['text'].values
     tf_transform = helpers.get_tf_vectorizer_data(posts)
-    lda = utils.get_model(os.path.join('outputs', 'lda.pkl'))
+    lda = utils.get_model(os.path.join(ROOT / "outputs", "lda.pkl"))
     if lda is None:
-        lda = LatentDirichletAllocation(n_topics=4, max_iter=5, learning_method='online', learning_offset=50.,
+        lda = LatentDirichletAllocation(n_topics=3, max_iter=5, learning_method='online', learning_offset=50.,
                                         random_state=0)
         lda.fit(tf_transform)
-        utils.save_model(lda, os.path.join('outputs', 'lda.pkl'))
+        utils.save_model(lda, os.path.join(ROOT / "outputs", "lda.pkl"))
 
     dt_matrix = lda.transform(tf_transform)
-    features = pd.DataFrame(dt_matrix, columns=['T1', 'T2', 'T3', 'T4'])
+    features = pd.DataFrame(dt_matrix, columns=['T1', 'T2', 'T3'])
     features['id'] = df['id'].tolist()
     return features
 
@@ -129,8 +99,8 @@ def extract_distance_from_not_offensive(df):
 def extract_distance_from_avg_vector(df):
     neg_posts = utils.get_abusive_df(df)['text'].tolist()
     pos_posts = utils.get_no_abusive_df(df)['text'].tolist()
-    m_wiki = w2v.get_model(r'wiki.he.word2vec.model')
-    m_our = w2v.get_model(r'our.corpus.word2vec.model')
+    m_wiki = w2v.get_model(ROOT / "Embedding/wiki.he.word2vec.model")
+    m_our = w2v.get_model(ROOT / "Embedding/our.corpus.word2vec.model")
     neg_matrix = helpers.create_vectors_array(neg_posts, m_our, m_wiki)
     pos_matrix = helpers.create_vectors_array(pos_posts, m_our, m_wiki)
     neg_avg_vec = np.mean(neg_matrix)

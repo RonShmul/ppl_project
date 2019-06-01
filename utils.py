@@ -2,9 +2,10 @@ import pandas as pd
 from nltk.tokenize import word_tokenize
 from scipy.spatial import distance
 from sklearn.externals import joblib
-import XGBoost as xgb
 import pathlib
 import matplotlib.pyplot as plt
+import base64
+ROOT = pathlib.Path(__file__).parent
 
 
 def get_abusive_df(df):
@@ -63,7 +64,7 @@ def get_stop_words():
     gets list of stop words from a file
     :return:
     """
-    stop_words = file_to_list(r'stop_words.txt')
+    stop_words = file_to_list(ROOT / 'stop_words.txt')
     return stop_words
 
 
@@ -116,21 +117,46 @@ def read_to_df(path='dataNew.csv'):
     return get_tagged_posts(df)
 
 
-def save_model(model, path='/outputs/model.pkl'):
+def create_csv_from_keepers_files(folder_path = r'keepersData'):
+    path_neg = folder_path + r"/sentences.neg"
+    path_pos = folder_path + r"/sentences.pos"
+    cols = ['id', 'text', 'cb_level']
+    df_neg = pd.DataFrame(columns=cols)
+    df_pos = pd.DataFrame(columns=cols)
+    with open(path_neg, 'r', encoding="utf8") as f:
+        df_neg['text'] = f.readlines()
+    with open(path_pos, 'r', encoding="utf8") as f:
+        df_pos['text'] = f.readlines()
+    df_neg['cb_level'] = 3
+    df_pos['cb_level'] = 1
+
+    df_neg = df_neg.reset_index(drop=True)
+    df_pos = df_pos.reset_index(drop=True)
+    df = pd.concat([df_neg, df_pos],axis=0,ignore_index=True)
+    df['id'] = list(range(df.shape[0]))
+    return df
+
+
+def save_model(model, path='outputs/model.pkl'):
     joblib.dump(model, path)
 
 
-def get_model(path='/outputs/model.pkl'):
+def get_model(path='outputs/model.pkl'):
     path_object = pathlib.Path(path)
     if path_object.exists():
         return joblib.load(path)
     return None
 
 
-def create_list_of_models():
-    return [('XGB', xgb.XGBoost().model)]
-
-
 def save_picture(path):
     plt.savefig(path)
+
+
+def clear_plot():
     plt.clf()
+
+
+def get_image_string(path):
+    with open(path, mode='rb') as file:
+        img = file.read()
+    return base64.encodebytes(img).decode("utf-8")

@@ -36,4 +36,4 @@ def get_post_vector(our_word2vec_model, wiki_word2vec_model, post):
 
     if len(postEmbedding) == 0:
         return np.zeros((1, 100))
-    return np.mean(postEmbedding)
+    return np.mean(postEmbedding, axis=0)
