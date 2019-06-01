@@ -26,10 +26,6 @@ X = fe.extract_features(tagged_df, feature_list)
 y = (tagged_df['cb_level'] == 3).astype(int)
 X = X.drop(columns=['id'])
 
-# index_not_offensive = 389 todo!!!
-# index_offensive = 1546
-# X_shap = X.iloc[index_not_offensive: index_offensive + 1]
-
 # split data to train and test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
 
@@ -60,11 +56,10 @@ vis.plot_roc_curve(roc_auc_xgb, fpr_xgb, tpr_xgb, 'xgboost')
 vis.plot_models_compare(performances_bl, performances_xgb)
 
 # SHAP for XGBoost:
-#explain_model(xgb_obj.get_booster(), X_shap, folder_name)
 path_object = pathlib.Path('pictures')
 if not path_object.exists():
     os.makedirs('pictures')
-explain_model(xgb_obj.get_booster(), X_test, 'pictures')
+explain_model(xgb_obj.get_booster(), X_test, True)
 
 acc_bl = per.get_accuracy(y, y_pred_bl)
 acc_xgb = per.get_accuracy(y_test, y_pred_xgb)

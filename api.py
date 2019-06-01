@@ -26,7 +26,7 @@ def train_file(file_path):
     X = X.drop(columns=['id'])
     xgb_obj = xgb.XGBoost()
     xgb_obj.train(X, y)
-    exp.explain_model(xgb_obj.model, X)
+    exp.explain_model(xgb_obj.model, X, False)
     utils.save_model(xgb_obj.model, os.path.join(HERE / 'outputs', 'XGBoost.pkl'))
 
 
@@ -45,7 +45,7 @@ def predict(post, explainability=True):
     pred = np.where(y_prob > 0.5, 1, 0)
     result = {'class': int(pred[0])}
     if explainability:
-        result['explain'] = exp.explain_class(model, X)
+        result['explain'] = exp.explain_class(model, X, False)
     return result
 
 
