@@ -1,12 +1,9 @@
 from sklearn.model_selection import GridSearchCV
-
-from TraditionalMLArchitecture.MLModel import MLModel
 import xgboost as xgb
 
 
-class XGBoost(MLModel):
+class XGBoost:
     def __init__(self):
-        super().__init__()
         self.model = xgb.XGBClassifier(objective='binary:logistic', max_depth=8, learning_rate=0.001,
                                        n_estimators=150, subsample=0.3, scale_pos_weight=1)
         self.bst = None
